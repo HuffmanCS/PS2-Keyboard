@@ -6,17 +6,21 @@
 //  8051 Keyboard - PS/2 Keyboard From Scratch
 //
 //  This code was written for an AT89C52/AT89S52 MCU to be programmed as a keyboard adhering to the PS/2 protocol.
+//      Another 8051 MCU may be used, so long as it contains the 8052 additions and has enough Ports/Pins.
 //
-//  I reverse engineered the PS/2 protocol by utilizing limited (and somewhat conflicting) documentation that I could find
-//      on the protocol from various sources, as well as by observing an older original PS/2 keyboard undergo operation
-//      while hooked to an oscilloscope. In my testing thus far, the "PS/2 Keyboard From Scratch" project I devised from
-//      this appears to work and successfully commit a handshake with various operating systems running on varied hardware.
+//  I reverse engineered the PS/2 protocol by utilizing limited (and somewhat conflicting) documentation that I could find on the protocol from various sources, as well as by
+//      observing an older PS/2 keyboard undergo operation while hooked to an oscilloscope. Eventually I found official documenation from IBM on the Personal System 2, which
+//      confirmed I had correctly implemented most of the protocol. In my testing thus far, the "PS/2 Keyboard From Scratch" project I devised from this appears to work and
+//      successfully commit a handshake with various operating systems running on varied hardware. Even still, this firmware doesn't strictly follow the protocol to the letter
+//      in some aspects and I plan to improve this primarily in a version 2 of this keyboard project with what I have learned.
 //
 //  It is very important either a 12 or 24 MHz crystal oscilliator is used to drive the MCU! The code will need to be modified to maintain accurate timing for any other clock speed!
 //      It is strongly advised a 24 MHz system clock is utilized, as a 12 MHz system clock causes the transmit function to drop its speed below the PS/2 protocol specification.
-//  The PS/2 protocol specification I read states the clock frequency must be within 10 - 16.7 kHz (this is stated in only one source I've found, but testing a real keyboard agrees).
+//
+//  The PS/2 protocol specification I read states the clock frequency must be within 10 - 16.7 kHz (testing a real keyboard agrees, but some sources claim different ranges).
 //      With a 24 MHz system clock, the clock frequency is programmed at 11.9 kHz (but can be modified faster than spec at a max of 17.2 kHz).
 //      With a 12 MHz system clock, the clock frequency will drop as low as 7.5 kHz (but can be modified just below spec at a max of 9.8 kHz).
+//
 //  Though in my own observations, the keyboard appeared to work just fine with the host even with its clock frequency as low as 7.5 kHz, despite being below the specification.
 //      I am not sure if this is just the case with the host hardware I've tested it on, or if hosts are generally receptive and robust with out-of-spec keyboards.
 //
@@ -27,7 +31,7 @@
 
 // definitions
 #define CLOCK 24    // the clock speed in MHz driving XTAL1 & XTAL2
-#define BREAK 672   // the period between keycode transmissions (in particular for extended/release codes, or multiple transmissions in a row
+#define BREAK 336   // the period between keycode/byte transmissions (in particular for extended/release codes, or multiple argument byte transmissions in a row)
 #define EXT 0x02E0  // extension keycode with stop/parity
 #define REL 0x03F0  // release keycode with stop/parity
 #define ACK 0x03FA  // acknowledge command with stop/parity
@@ -76,7 +80,7 @@ void delay_us(int us){
     us += us;
 #endif
     // calculate hex to load into timer high/low bytes
-    unsigned int pause = 0xffff - us; // 0xffff
+    unsigned int pause = 0xffff - us;
     // set timer mode to 16-bit, load timer high/low bytes with pause
     TMOD = 0x01;
     TL0 = pause & 0xff;
@@ -133,8 +137,8 @@ int receive(void){
     return buffer;
 }//end_receive
 
-// function to prepare appropriate keycode to send based on code length and if pressed/released as indicated by keycode parameter (0 is pressed state, 1 is released state)
-void sendCode(unsigned int keycode, char keyState){
+// function to prepare appropriate keycode to send based on code length and if pressed/released as indicated by keycode parameter (1 is pressed state, 0 is released state)
+void sendCode(uint32_t keycode, char keyState){
     EA = 0; // disable interrupts
     // if the keyState is non-zero, this indicates to send the code for pressing the key
     if( keyState ){
